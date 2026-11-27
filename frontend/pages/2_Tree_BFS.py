@@ -63,17 +63,144 @@ bfs_rows = [
 ]
 st.dataframe(pd.DataFrame(bfs_rows), hide_index=True)
 
-# --- sơ đồ cây (Graphviz: lá màu xanh, đỉnh trong màu cam) ---
-st.subheader("Sơ đồ cây")
-if report["total_nodes"] > 120:
-    st.info("Cây lớn, hãy chọn một chi nhánh để sơ đồ dễ nhìn hơn.")
-dot = ["digraph G { rankdir=TB; node [shape=box, style=filled, fontsize=10];"]
-for n in report["order"]:
-    color = "#a5d6a7" if n in leaf_set else "#ffcc80"
-    dot.append(f'"{n}" [label="{label(n)}", fillcolor="{color}"];')
-for n in report["order"]:
-    for ch in tree.get(n, []):
-        dot.append(f'"{n}" -> "{ch}";')
-dot.append("}")
-st.graphviz_chart("\n".join(dot))
-st.caption("Xanh: lá (bến xe). Cam: đỉnh trong (trụ sở / chi nhánh).")
+# --- treemap: diện tích ô = số bến xe, màu = so với trung bình cùng tầng ---
+st.subheader("Bản đồ phân bổ bến xe (treemap)")
+
+
+def treemap_data(tree, order, depths, label):
+    """Mỗi ĐỈNH TRONG là một ô; giá trị = số bến xe (lá) bên dưới nó.
+
+    ratio = số bến của ô / trung bình số bến của các đỉnh trong cùng tầng.
+    ratio > 1: đông hơn mặt bằng chung tầng; ratio < 1: thưa hơn.
+    """
+    leaves_under = {}
+    for n in reversed(order):                       # con xử lý trước cha
+        kids = [c for c in tree.get(n, []) if c in depths]
+        leaves_under[n] = 1 if not kids else sum(leaves_under[c] for c in kids)
+
+    internal = [n for n in order if any(c in depths for c in tree.get(n, []))]
+    by_level = {}
+    for n in internal:
+        by_level.setdefault(depths[n], []).append(leaves_under[n])
+    level_mean = {lv: sum(v) / len(v) for lv, v in by_level.items()}
+
+    parent_of = {c: p for p in internal for c in tree[p] if c in depths}
+    rows = []
+    for n in internal:
+        v = leaves_under[n]
+        rows.append({
+            "id": n,
+            "label": label(n),
+            "parent": parent_of.get(n, ""),
+            "value": v,
+            "level": depths[n],
+            "ratio": v / level_mean[depths[n]],
+        })
+    return rows, level_mean
+
+
+tm_rows, tm_mean = treemap_data(tree, report["order"], report["depths"], label)
+if not tm_rows:
+    st.info("Phạm vi đang chọn không có đơn vị quản lý nào để vẽ treemap.")
+else:
+    try:
+        import plotly.graph_objects as go
+
+        fig = go.Figure(go.Treemap(
+            ids=[r["id"] for r in tm_rows],
+            labels=[r["label"] for r in tm_rows],
+            parents=[r["parent"] for r in tm_rows],
+            values=[r["value"] for r in tm_rows],
+            branchvalues="total",
+            text=[f"{r['value']} bến xe" for r in tm_rows],
+            textinfo="label+text",
+            customdata=[[r["level"], round(r["ratio"], 2), round(tm_mean[r["level"]], 1)]
+                        for r in tm_rows],
+            hovertemplate=("<b>%{label}</b><br>%{text}"
+                           "<br>Tầng %{customdata[0]}"
+                           "<br>%{customdata[1]}× trung bình cùng tầng"
+                           " (TB = %{customdata[2]} bến)<extra></extra>"),
+            marker=dict(
+                colors=[min(r["ratio"], 2.5) for r in tm_rows],
+                colorscale=[[0, "#cfe8d5"], [0.4, "#f7f1d0"], [1, "#e8715a"]],
+                cmin=0, cmax=2.5,
+                colorbar=dict(title="× TB tầng"),
+                line=dict(width=2),
+            ),
+            pathbar=dict(visible=True),
+        ))
+        fig.update_layout(margin=dict(t=10, l=0, r=0, b=0), height=520)
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            "Diện tích ô tỉ lệ với số bến xe bên dưới. Màu đỏ: đông hơn trung bình cùng tầng, "
+            "xanh: thưa hơn. Bấm vào một ô để phóng to chi nhánh đó, bấm thanh đường dẫn phía trên để quay lại."
+        )
+    except ImportError:
+        st.warning("Chưa cài plotly. Chạy: pip install plotly")
+
+with st.expander("Xem sơ đồ cây chi tiết"):
+    # --- sơ đồ cây (Graphviz: lá màu xanh, đỉnh trong màu cam) ---
+    mode = st.radio(
+        "Kiểu hiển thị",
+        ["Gọn (gộp bến xe theo chi nhánh)", "Chi tiết (từng bến xe)"],
+        horizontal=True,
+    )
+
+
+    def wrap(text, width=18):
+        """Xuống dòng cho tên dài để ô không bị bè ngang."""
+        words, lines, cur = str(text).split(), [], ""
+        for w in words:
+            if cur and len(cur) + 1 + len(w) > width:
+                lines.append(cur)
+                cur = w
+            else:
+                cur = f"{cur} {w}".strip()
+        if cur:
+            lines.append(cur)
+        return "\\n".join(lines)
+
+
+    def build_compact_dot():
+        """Mỗi đỉnh trong là một ô; các lá con trực tiếp gộp thành 1 ô '(N) bến xe'."""
+        dot = ["digraph G { rankdir=TB; nodesep=0.35; ranksep=0.7;"
+               ' node [shape=box, style="filled,rounded", fontsize=13, margin="0.15,0.08"];']
+        for n in report["order"]:
+            if n in leaf_set:
+                continue
+            kids = tree.get(n, [])
+            leaf_kids = [c for c in kids if c in leaf_set]
+            sub_kids = [c for c in kids if c not in leaf_set]
+            dot.append(f'"{n}" [label="{wrap(label(n))}", fillcolor="#ffcc80"];')
+            for c in sub_kids:
+                dot.append(f'"{n}" -> "{c}";')
+            if leaf_kids:
+                gid = f"{n}__leaves"
+                dot.append(f'"{gid}" [label="{len(leaf_kids)} bến xe", fillcolor="#a5d6a7"];')
+                dot.append(f'"{n}" -> "{gid}";')
+        dot.append("}")
+        return "\n".join(dot)
+
+
+    def build_full_dot():
+        """Từng nút một, xoay ngang (LR) để lá xếp thành cột dọc, không bị bè ngang."""
+        dot = ["digraph G { rankdir=LR; nodesep=0.06; ranksep=0.8;"
+               ' node [shape=box, style="filled", fontsize=11];']
+        for n in report["order"]:
+            color = "#a5d6a7" if n in leaf_set else "#ffcc80"
+            dot.append(f'"{n}" [label="{wrap(label(n), 24)}", fillcolor="{color}"];')
+        for n in report["order"]:
+            for ch in tree.get(n, []):
+                dot.append(f'"{n}" -> "{ch}";')
+        dot.append("}")
+        return "\n".join(dot)
+
+
+    if mode.startswith("Gọn"):
+        st.graphviz_chart(build_compact_dot())
+    else:
+        if report["total_nodes"] > 120:
+            st.info("Cây lớn, hãy chọn một chi nhánh ở trên để sơ đồ dễ nhìn hơn.")
+        st.graphviz_chart(build_full_dot())
+    st.caption("Xanh: lá (bến xe). Cam: đỉnh trong (trụ sở / chi nhánh). "
+               "Chế độ Gọn: ô xanh ghi số bến xe trực thuộc chi nhánh đó.")
