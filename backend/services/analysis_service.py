@@ -1,5 +1,5 @@
 """TV2 - Service phân tích cấu trúc (gọi thuật toán, trả kết quả cho giao diện)."""
-from algorithms.bfs import bfs
+from algorithms.bfs import bfs, bfs_trace, bfs_operation_count
 from algorithms.leaf_analysis import analyze_structure
 
 
@@ -35,3 +35,19 @@ def level_table_rows(report):
         }
         for r in report["by_level"]
     ]
+
+
+# Cây mẫu nhỏ để minh họa BFS từng bước (độc lập với dữ liệu thật)
+SAMPLE_TREE = {"A": ["B", "C"], "B": ["D", "E"], "C": ["F"], "D": [], "E": [], "F": []}
+
+
+def sample_trace():
+    """Các bước BFS trên cây mẫu A, B, C, D, E, F."""
+    return bfs_trace(SAMPLE_TREE, "A")
+
+
+def complexity_report(tree, root):
+    """Số thao tác thực tế của BFS trên cây đang xét, để đối chiếu với V + E."""
+    pops, edges = bfs_operation_count(tree, root)
+    return {"V": pops, "E": edges, "pops": pops, "edges_examined": edges,
+            "total_ops": pops + edges, "check": edges == pops - 1}
