@@ -1,6 +1,9 @@
+import os
+
 import path_setup  # noqa: F401  (thêm thư mục gốc vào sys.path)
 import streamlit as st
 import pandas as pd
+from path_setup import ROOT_DIR
 from backend.services.tree_service import TreeService
 from backend.database.repository import UnitRepository
 
@@ -10,39 +13,29 @@ st.title("1. Quản lý Dữ liệu & Kiểm tra Cấu trúc Cây (TV1)")
 repo = UnitRepository()
 service = TreeService()
 
-def generate_sample_data():
-    data = [{"id": "TRU_SO", "name": "Trụ sở Tổng công ty", "type": "HEADQUARTERS", "parent_id": ""}]
-    branches_t1 = [
-        ("CN_BAC", "Chi nhánh Miền Bắc", 2),
-        ("CN_TRUNG", "Chi nhánh Miền Trung", 2),
-        ("CN_NAM", "Chi nhánh Miền Nam", 3),
-        ("CN_TAY", "Chi nhánh Miền Tây", 1),
-    ]
-    station_counts = [6, 5, 4, 3, 22, 12, 8, 5]
-    sub_idx = 0
-    bx_counter = 1
+SAMPLE_CSV = os.path.join(str(ROOT_DIR), "data", "organization.csv")
 
-    for b1_id, b1_name, num_sub in branches_t1:
-        data.append({"id": b1_id, "name": b1_name, "type": "BRANCH", "parent_id": "TRU_SO"})
-        for s in range(1, num_sub + 1):
-            b2_id = f"{b1_id}_KV{s}"
-            data.append({"id": b2_id, "name": f"Khu vực {s} - {b1_name}", "type": "BRANCH", "parent_id": b1_id})
-            count = station_counts[sub_idx]
-            sub_idx += 1
-            for _ in range(count):
-                bx_id = f"BX_{bx_counter:02d}"
-                data.append({"id": bx_id, "name": f"Bến xe số {bx_counter:02d}", "type": "STATION", "parent_id": b2_id})
-                bx_counter += 1
-    return data
+
+def load_sample_data():
+    """Đọc dữ liệu mẫu chính thức của nhóm: data/organization.csv (61 bến xe)."""
+    return pd.read_csv(SAMPLE_CSV, dtype=str).fillna("").to_dict(orient="records")
+
 
 col1, col2 = st.columns(2)
 with col1:
-    if st.button("Tạo dữ liệu mẫu chuẩn (4 tầng, 65 bến xe)", type="primary"):
-        sample = generate_sample_data()
-        ok, errs = service.import_from_records(sample)
-        if ok:
-            st.success("Đã khởi tạo dữ liệu mẫu thành công!")
-            st.rerun()
+    if st.button("Nạp dữ liệu mẫu chính thức (data/organization.csv, 61 bến xe)", type="primary"):
+        try:
+            sample = load_sample_data()
+        except OSError as ex:
+            st.error(f"Không đọc được {SAMPLE_CSV}: {ex}")
+        else:
+            ok, errs = service.import_from_records(sample)
+            if ok:
+                st.success("Đã nạp dữ liệu mẫu thành công!")
+                st.rerun()
+            else:
+                for e in errs:
+                    st.error(e)
 
 with col2:
     uploaded = st.file_uploader("Hoặc tải lên file CSV (id, name, type, parent_id)", type=["csv"])
@@ -78,7 +71,7 @@ if current_data:
 with st.expander("Thêm đơn vị mới"):
     with st.form("add_form"):
         c1, c2, c3, c4 = st.columns(4)
-        new_id = c1.text_input("Mã đơn vị (VD: BX_66)")
+        new_id = c1.text_input("Mã đơn vị (VD: BX_MN_HCM_16)")
         new_name = c2.text_input("Tên đơn vị")
         new_type = c3.selectbox("Loại", ["HEADQUARTERS", "BRANCH", "STATION"])
         new_parent = c4.text_input("Mã đơn vị cha (để trống nếu là gốc)")
