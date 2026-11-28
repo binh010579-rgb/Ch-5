@@ -10,9 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from algorithms.bfs import bfs_trace
-from backend.services.analysis_service import (
-    SAMPLE_TREE, complexity_report, level_table_rows, run_analysis, sample_trace,
-)
+from backend.services.analysis_service import level_table_rows, run_analysis, sample_trace
 from backend.services.tree_service import get_valid_tree  # TV1
 
 st.title("Cây phân cấp và duyệt BFS")
@@ -91,47 +89,6 @@ if _scope_ok:
          "Hàng đợi sau bước": ", ".join(_name(n) for n in x["queue"]) or "rỗng"}
         for x in _steps[:_k]
     ]), hide_index=True)
-
-with st.expander("Vì sao gốc nằm ở tầng 0?"):
-    st.markdown(
-        "Tầng của đỉnh v là **số cạnh** trên đường đi duy nhất từ gốc đến v. "
-        "Đường đi từ gốc đến chính nó có 0 cạnh nên `depth(gốc) = 0`.\n\n"
-        "- Công thức truy hồi gọn: `depth(con) = depth(cha) + 1`.\n"
-        "- Chiều cao h = tầng lớn nhất = số cạnh của đường đi dài nhất từ gốc, khớp định nghĩa "
-        "Chương 7 và công thức `h ≥ ⌈log_m L⌉` ở trang Model (cây chỉ có gốc thì h = 0).\n"
-        "- Cây chiều cao h có h + 1 tầng (0..h). Nếu gốc ở tầng 1 thì \"tầng\" thành số đỉnh "
-        "trên đường đi và mọi công thức theo h phải ±1.\n"
-        "- Với cây con của một chi nhánh, tầng được tính lại từ 0 tại chi nhánh đó."
-    )
-
-with st.expander("Chứng minh độ phức tạp BFS là O(V + E)"):
-    st.markdown(
-        "Gọi V là số đỉnh đi tới được từ gốc, E là số cạnh giữa chúng (cây: E = V − 1).\n\n"
-        "1. **Mỗi đỉnh vào hàng đợi đúng một lần**: chỉ `append` khi chưa thuộc `visited` và "
-        "đánh dấu ngay lúc đó. Vòng lặp dừng khi hàng đợi rỗng nên số lần `popleft` = V.\n"
-        "2. **Mỗi cạnh được xét đúng một lần**: mỗi đỉnh bị lấy ra đúng một lần nên vòng "
-        "`for child` của nó chạy đúng một lần; tổng số lần lặp = Σ deg_out(v) = E.\n"
-        "3. **Mỗi thao tác là O(1)**: `deque.popleft/append`, `in visited`, `visited.add`, "
-        "ghi `depths[child]` (dùng `list.pop(0)` sẽ là O(n)).\n"
-        "4. **Cộng lại**: T = V·O(1) + E·O(1) + O(1) = **O(V + E)**, với cây là O(V). "
-        "Bộ nhớ O(V).\n\n"
-        "Tính độ sâu bằng cách đi ngược lên gốc cho từng đỉnh tốn O(V·h), tệ nhất O(V²); "
-        "BFS tính `depth(con) = depth(cha) + 1` ngay khi duyệt nên chỉ O(V + E)."
-    )
-    _cr = complexity_report(*([SAMPLE_TREE, "A"] if demo.startswith("Cây mẫu")
-                              else [{n: [c for c in tree.get(n, []) if c in report["depths"]]
-                                     for n in report["order"]}, report["order"][0]]))
-    st.markdown("**Đối chiếu số thao tác thực tế** (" + ("cây mẫu" if demo.startswith("Cây mẫu")
-                                                      else "phạm vi đang chọn") + "):")
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("V (lần popleft)", _cr["V"])
-    k2.metric("E (cạnh được xét)", _cr["E"])
-    k3.metric("Tổng thao tác", _cr["total_ops"])
-    k4.metric("V + E", _cr["V"] + _cr["E"])
-    if _cr["check"] and _cr["total_ops"] == _cr["V"] + _cr["E"]:
-        st.success("Khớp lý thuyết: tổng thao tác = V + E và E = V − 1.")
-    else:
-        st.error("Số thao tác không khớp lý thuyết, cần kiểm tra dữ liệu.")
 
 # --- thứ tự BFS ---
 st.subheader("Thứ tự duyệt BFS")
