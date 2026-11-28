@@ -22,7 +22,7 @@ pytest                            # chạy toàn bộ test
 pytest tests/test_recommendation.py   # chạy test riêng một người
 ```
 
-Lần đầu mở giao diện, vào trang **1. Data** để nạp dữ liệu (nút dữ liệu mẫu hoặc tải `data/organization.csv`). Các trang còn lại lấy cây từ database nên cần nạp dữ liệu trước.
+Lần đầu mở giao diện, vào trang **1. Data** để nạp dữ liệu (bấm nút nạp dữ liệu mẫu chính thức, hoặc tải file CSV của bạn lên). Các trang còn lại lấy cây từ database nên cần nạp dữ liệu trước.
 File `backend/database/bus_management.db` được tạo tự động khi chạy, **không commit** (đã có trong `.gitignore`).
 
 ## 3. Cấu trúc thư mục
@@ -124,8 +124,7 @@ Bộ dữ liệu chính cần 3–4 tầng, ít nhất 60 bến xe (lá) và ph�
 | B – Phân bổ không đều | Vài chi nhánh quản lý nhiều bến hơn hẳn | Kiểm tra khả năng phát hiện lệch (`data/organization.csv`) |
 | C – Sau đề xuất | Tạo từ B bằng tách/gộp/chuyển có giải thích | Đánh giá trước–sau (trang 5) |
 
-Dữ liệu mẫu `data/organization.csv`: 75 đơn vị, L = 61 bến xe, I = 14 đỉnh trong, h = 3.
-**Lưu ý:** nút "dữ liệu mẫu" ở trang 1 (65 bến) và `data/organization.csv` (61 bến) đang là hai bộ khác nhau; nhóm cần chốt một bộ chính thức trước khi chạy thực nghiệm và viết báo cáo.
+**Nguồn dữ liệu chính thức: `data/organization.csv`** – 75 đơn vị, L = 61 bến xe, I = 14 đỉnh trong, h = 3. Nút "Nạp dữ liệu mẫu chính thức" ở trang 1 đọc thẳng file này nên mọi số liệu trong báo cáo cùng một nguồn.
 
 ## 8. Kiểm thử
 
